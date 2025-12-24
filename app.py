@@ -2,7 +2,7 @@ import os
 import logging
 import threading
 import time
-from flask import Flask, request, redirect, url_for, flash, jsonify
+from flask import Flask, request, redirect, url_for, flash
 from flask_login import LoginManager, login_user, logout_user, login_required, current_user
 from flask_admin import Admin
 from flask_admin.contrib.sqla import ModelView
@@ -11,10 +11,6 @@ from datetime import datetime
 import json
 import requests
 from flask_sqlalchemy import SQLAlchemy
-from dotenv import load_dotenv
-
-# Загружаем переменные окружения
-load_dotenv()
 
 # Настройка логирования
 logging.basicConfig(
@@ -26,10 +22,10 @@ logger = logging.getLogger(__name__)
 # Создаем Flask приложение
 app = Flask(__name__)
 
-# ВАШИ ДАННЫЕ - теперь из переменных окружения
-app.config['SECRET_KEY'] = os.environ.get('SECRET_KEY', 'suvtekin-secret-key-2024-muha-muhamed')
-TELEGRAM_TOKEN = os.environ.get('TELEGRAM_TOKEN', '8586126815:AAHAGyah7Oz-8mHzUcFvRcHV3Dsug3sPT4g')
-TELEGRAM_ADMIN_ID = os.environ.get('TELEGRAM_ADMIN_ID', '6349730260')
+# ВАШИ ДАННЫЕ
+app.config['SECRET_KEY'] = 'suvtekin-secret-key-2024-muha-muhamed'
+TELEGRAM_TOKEN = '8586126815:AAHAGyah7Oz-8mHzUcFvRcHV3Dsug3sPT4g'
+TELEGRAM_ADMIN_ID = '6349730260'
 
 # База данных
 app.config['SQLALCHEMY_DATABASE_URI'] = os.environ.get('DATABASE_URL', 'sqlite:///cars.db').replace('postgres://', 'postgresql://', 1)
@@ -321,37 +317,8 @@ login_manager.login_view = 'login'
 def load_user(user_id):
     return User.query.get(int(user_id))
 
-# ИСПРАВЛЕННЫЕ ModelView для админки
+# ПРОСТЫЕ ModelView для админки
 class CarModelView(ModelView):
-    column_list = ['id', 'title', 'price_usd', 'brand', 'model', 'year', 'is_active']
-    column_searchable_list = ['title']
-    column_filters = ['year', 'is_active', 'price_usd']
-    column_labels = {
-        'price_usd': 'Цена ($)',
-        'mileage_km': 'Пробег (км)',
-        'brand': 'Бренд',
-        'model': 'Модель'
-    }
-    
-    form_columns = ['title', 'description', 'price_usd', 'brand', 'model', 
-                   'year', 'mileage_km', 'fuel_type', 'transmission', 'color', 
-                   'engine_capacity', 'photo_url', 'is_active']
-    
-    # ВАЖНО: Разрешаем создание
-    can_create = True
-    can_edit = True
-    can_delete = True
-    can_export = True
-    
-    def on_model_change(self, form, model, is_created):
-        # Автоматически определяем ценовую категорию
-        if model.price_usd is not None:
-            categories = PriceCategory.query.filter_by(is_active=True).all()
-            for category in categories:
-                if category.min_price_usd <= model.price_usd <= category.max_price_usd:
-                    model.price_category_id = category.id
-                    break
-    
     def is_accessible(self):
         return current_user.is_authenticated and current_user.role == 'admin'
     
@@ -359,16 +326,6 @@ class CarModelView(ModelView):
         return redirect(url_for('login'))
 
 class BrandModelView(ModelView):
-    column_list = ['id', 'name', 'is_active', 'created_at']
-    form_columns = ['name', 'is_active']
-    column_searchable_list = ['name']
-    column_filters = ['is_active']
-    
-    # ВАЖНО: Разрешаем создание
-    can_create = True
-    can_edit = True
-    can_delete = True
-    
     def is_accessible(self):
         return current_user.is_authenticated and current_user.role == 'admin'
     
@@ -376,16 +333,6 @@ class BrandModelView(ModelView):
         return redirect(url_for('login'))
 
 class CarModelModelView(ModelView):
-    column_list = ['id', 'name', 'brand', 'is_active', 'created_at']
-    form_columns = ['name', 'brand', 'is_active']
-    column_searchable_list = ['name']
-    column_filters = ['is_active', 'brand']
-    
-    # ВАЖНО: Разрешаем создание
-    can_create = True
-    can_edit = True
-    can_delete = True
-    
     def is_accessible(self):
         return current_user.is_authenticated and current_user.role == 'admin'
     
@@ -393,16 +340,6 @@ class CarModelModelView(ModelView):
         return redirect(url_for('login'))
 
 class ManagerModelView(ModelView):
-    column_list = ['id', 'name', 'telegram_username', 'phone', 'email', 'is_active']
-    form_columns = ['name', 'telegram_username', 'phone', 'email', 'is_active']
-    column_searchable_list = ['name', 'phone']
-    column_filters = ['is_active']
-    
-    # ВАЖНО: Разрешаем создание
-    can_create = True
-    can_edit = True
-    can_delete = True
-    
     def is_accessible(self):
         return current_user.is_authenticated and current_user.role == 'admin'
     
@@ -410,15 +347,6 @@ class ManagerModelView(ModelView):
         return redirect(url_for('login'))
 
 class OrderModelView(ModelView):
-    column_list = ['id', 'car', 'full_name', 'phone', 'status', 'created_at']
-    form_columns = ['status', 'phone', 'full_name']
-    column_filters = ['status', 'created_at']
-    column_searchable_list = ['full_name', 'phone']
-    
-    can_create = False  # Заказы создаются только через бота
-    can_edit = True
-    can_delete = True
-    
     def is_accessible(self):
         return current_user.is_authenticated and current_user.role == 'admin'
     
@@ -426,15 +354,6 @@ class OrderModelView(ModelView):
         return redirect(url_for('login'))
 
 class SellRequestModelView(ModelView):
-    column_list = ['id', 'car_brand', 'car_model', 'car_year', 'car_price', 'phone', 'status', 'created_at']
-    form_columns = ['status', 'phone']
-    column_filters = ['status', 'created_at']
-    column_searchable_list = ['car_brand', 'car_model', 'phone']
-    
-    can_create = False  # Заявки создаются только через бота
-    can_edit = True
-    can_delete = True
-    
     def is_accessible(self):
         return current_user.is_authenticated and current_user.role == 'admin'
     
@@ -442,16 +361,6 @@ class SellRequestModelView(ModelView):
         return redirect(url_for('login'))
 
 class PriceCategoryModelView(ModelView):
-    column_list = ['id', 'name', 'min_price_usd', 'max_price_usd', 'is_active']
-    form_columns = ['name', 'min_price_usd', 'max_price_usd', 'is_active']
-    column_searchable_list = ['name']
-    column_filters = ['is_active']
-    
-    # ВАЖНО: Разрешаем создание
-    can_create = True
-    can_edit = True
-    can_delete = True
-    
     def is_accessible(self):
         return current_user.is_authenticated and current_user.role == 'admin'
     
@@ -459,16 +368,6 @@ class PriceCategoryModelView(ModelView):
         return redirect(url_for('login'))
 
 class UserModelView(ModelView):
-    column_list = ['id', 'username', 'role', 'telegram_id', 'created_at']
-    form_columns = ['username', 'password', 'role', 'telegram_id']
-    column_searchable_list = ['username']
-    column_filters = ['role', 'created_at']
-    
-    # ВАЖНО: Разрешаем создание
-    can_create = True
-    can_edit = True
-    can_delete = True
-    
     def on_model_change(self, form, model, is_created):
         if form.password.data:
             model.password = generate_password_hash(form.password.data)
@@ -480,15 +379,15 @@ class UserModelView(ModelView):
         return redirect(url_for('login'))
 
 # Создаем админку
-admin = Admin(app, name='Suvtekin Auto', template_mode='bootstrap3', url='/admin')
-admin.add_view(CarModelView(Car, db.session, name='Автомобили', category='Авто'))
-admin.add_view(BrandModelView(Brand, db.session, name='Бренды', category='Справочники'))
-admin.add_view(CarModelModelView(CarModel, db.session, name='Модели', category='Справочники'))
-admin.add_view(PriceCategoryModelView(PriceCategory, db.session, name='Категории цен', category='Справочники'))
-admin.add_view(ManagerModelView(Manager, db.session, name='Менеджеры', category='Персонал'))
-admin.add_view(OrderModelView(Order, db.session, name='Заказы', category='Заявки'))
-admin.add_view(SellRequestModelView(SellRequest, db.session, name='Заявки на продажу', category='Заявки'))
-admin.add_view(UserModelView(User, db.session, name='Пользователи', category='Система'))
+admin = Admin(app, name='Suvtekin Auto', template_mode='bootstrap3')
+admin.add_view(CarModelView(Car, db.session, name='Автомобили'))
+admin.add_view(OrderModelView(Order, db.session, name='Заказы'))
+admin.add_view(SellRequestModelView(SellRequest, db.session, name='Заявки на продажу'))
+admin.add_view(PriceCategoryModelView(PriceCategory, db.session, name='Категории цен'))
+admin.add_view(BrandModelView(Brand, db.session, name='Бренды'))
+admin.add_view(CarModelModelView(CarModel, db.session, name='Модели'))
+admin.add_view(ManagerModelView(Manager, db.session, name='Менеджеры'))
+admin.add_view(UserModelView(User, db.session, name='Пользователи'))
 
 # Роуты
 @app.route('/')
@@ -539,14 +438,6 @@ def login():
             <h2>🚗 Suvtekin Auto</h2>
             <p>Панель управления автосалоном</p>
             
-            {% with messages = get_flashed_messages(with_categories=true) %}
-                {% if messages %}
-                    {% for category, message in messages %}
-                        <div class="alert alert-{{ category }}">{{ message }}</div>
-                    {% endfor %}
-                {% endif %}
-            {% endwith %}
-            
             <form method="POST">
                 <div class="form-group">
                     <label for="username">Логин</label>
@@ -578,272 +469,769 @@ def logout():
     flash('Вы вышли из системы', 'success')
     return redirect(url_for('login'))
 
-# УПРОЩЕННЫЙ TELEGRAM БОТ (без сложной логики)
-def setup_webhook_on_startup():
-    """Настройка вебхука при запуске приложения"""
+# ТЕЛЕГРАМ БОТ - СТАРЫЙ РАБОЧИЙ ВАРИАНТ (без вебхуков)
+def telegram_bot():
+    """Telegram бот с выбором языка и работающими кнопками"""
     try:
+        logger.info("🤖 Запуск Telegram бота...")
+        
         BASE_URL = f"https://api.telegram.org/bot{TELEGRAM_TOKEN}"
         
-        # Получаем URL приложения
-        render_url = os.environ.get('RENDER_EXTERNAL_URL', 'https://suvtekin.onrender.com')
-        webhook_url = f"{render_url}/webhook/{TELEGRAM_TOKEN}"
+        # Словари для языков
+        TEXTS = {
+            'ru': {
+                'choose_language': 'Выберите язык:\n\nTilni tanlang:',
+                'welcome': '🚗 Добро пожаловать в Suvtekin Auto!',
+                'help': '📋 Используйте кнопки ниже для навигации',
+                'main_menu': 'Главное меню:',
+                'show_cars': '🚗 Посмотреть авто',
+                'price_categories': '💰 Категории цен',
+                'select_by_brand': '🏭 Поиск по марке',
+                'contact_manager': '📞 Контакты',
+                'sell_car': '💰 Продать авто',
+                'help_btn': 'ℹ️ Помощь',
+                'no_cars': '🚗 Автомобилей нет в наличии',
+                'car_info': '🚗 *{title}*\n\n💰 *Цена:* ${price:,.0f}\n📏 *Пробег:* {mileage:,} км\n🏭 *Марка:* {brand}\n📅 *Год:* {year}\n⛽ *Топливо:* {fuel}\n⚙️ *КПП:* {transmission}\n🎨 *Цвет:* {color}\n🔧 *Объем:* {engine} л\n\n{description}',
+                'order_btn': '🛒 Заказать',
+                'order_phone': '📞 Введите ваш номер телефона для связи:',
+                'order_success': '✅ Заказ оформлен! Менеджер свяжется с вами.',
+                'choose_category': 'Выберите категорию цены:',
+                'choose_brand': 'Выберите марку автомобиля:',
+                'choose_model': 'Выберите модель:',
+                'managers': '📞 *Наши менеджеры:*\n\n{managers}',
+                'sell_car_welcome': '💰 *Продать автомобиль*\n\nВыберите марку вашего авто:',
+                'other_brand': '➡️ Другая марка',
+                'sell_car_model': 'Введите модель автомобиля:',
+                'sell_car_year': 'Введите год выпуска автомобиля:',
+                'sell_car_mileage': 'Введите пробег (в км):',
+                'sell_car_price': 'Введите желаемую цену ($):',
+                'sell_car_description': 'Опишите состояние автомобиля:',
+                'sell_car_phone': 'Введите ваш номер телефона:',
+                'sell_car_success': '✅ Заявка отправлена! Менеджер свяжется с вами.',
+                'back': '🔙 Назад',
+                'cancel': '❌ Отмена',
+                'all_brands': 'Все марки',
+                'error': '❌ Произошла ошибка. Попробуйте еще раз.'
+            },
+            'uz': {
+                'choose_language': 'Tilni tanlang:\n\nВыберите язык:',
+                'welcome': '🚗 Suvtekin Auto ga xush kelibsiz!',
+                'help': '📋 Navigatsiya uchun pastdagi tugmalardan foydalaning',
+                'main_menu': 'Asosiy menyu:',
+                'show_cars': '🚗 Avtomobillarni ko\'rish',
+                'price_categories': '💰 Narx kategoriyalari',
+                'select_by_brand': '🏭 Marka bo\'yicha qidirish',
+                'contact_manager': '📞 Kontaktlar',
+                'sell_car': '💰 Avtomobil sotish',
+                'help_btn': 'ℹ️ Yordam',
+                'no_cars': '🚗 Mavjud avtomobillar yo\'q',
+                'car_info': '🚗 *{title}*\n\n💰 *Narx:* ${price:,.0f}\n📏 *Yurgan:* {mileage:,} km\n🏭 *Marka:* {brand}\n📅 *Yil:* {year}\n⛽ *Yoqilg\'i:* {fuel}\n⚙️ *Uzatma:* {transmission}\n🎨 *Rang:* {color}\n🔧 *Hajm:* {engine} l\n\n{description}',
+                'order_btn': '🛒 Buyurtma',
+                'order_phone': '📞 Aloqa uchun telefon raqamingizni kiriting:',
+                'order_success': '✅ Buyurtma qabul qilindi! Menejer siz bilan bog\'lanadi.',
+                'choose_category': 'Narx kategoriyasini tanlang:',
+                'choose_brand': 'Avtomobil markasini tanlang:',
+                'choose_model': 'Modelni tanlang:',
+                'managers': '📞 *Bizning menejerlarimiz:*\n\n{managers}',
+                'sell_car_welcome': '💰 *Avtomobil sotish*\n\nAvtomobilingiz markasini tanlang:',
+                'other_brand': '➡️ Boshqa marka',
+                'sell_car_model': 'Avtomobil modelini kiriting:',
+                'sell_car_year': 'Avtomobil ishlab chiqarilgan yilini kiriting:',
+                'sell_car_mileage': 'Yurgan masofani kiriting (km):',
+                'sell_car_price': 'Istalgan narxni kiriting ($):',
+                'sell_car_description': 'Avtomobil holatini tasvirlang:',
+                'sell_car_phone': 'Telefon raqamingizni kiriting:',
+                'sell_car_success': '✅ Ariza yuborildi! Menejer siz bilan bog\'lanadi.',
+                'back': '🔙 Orqaga',
+                'cancel': '❌ Bekor qilish',
+                'all_brands': 'Barcha markalar',
+                'error': '❌ Xatolik yuz berdi. Qaytadan urinib ko\'ring.'
+            }
+        }
         
-        # Устанавливаем вебхук
-        response = requests.get(f"{BASE_URL}/setWebhook?url={webhook_url}", timeout=10)
+        # Словари для состояний
+        user_languages = {}
+        user_states = {}
+        user_data = {}
+        
+        def get_language(chat_id):
+            return user_languages.get(chat_id, 'ru')
+        
+        def t(chat_id, key):
+            return TEXTS[get_language(chat_id)].get(key, key)
+        
+        def send_message(chat_id, text, reply_markup=None, parse_mode='Markdown'):
+            url = f"{BASE_URL}/sendMessage"
+            params = {'chat_id': chat_id, 'text': text, 'parse_mode': parse_mode}
+            if reply_markup:
+                params['reply_markup'] = json.dumps(reply_markup)
+            try:
+                response = requests.post(url, params=params, timeout=10)
+                return response.json()
+            except Exception as e:
+                logger.error(f"Ошибка отправки сообщения: {e}")
+                return None
+        
+        def send_photo(chat_id, photo_url, caption, reply_markup=None):
+            url = f"{BASE_URL}/sendPhoto"
+            params = {'chat_id': chat_id, 'photo': photo_url, 'caption': caption, 'parse_mode': 'Markdown'}
+            if reply_markup:
+                params['reply_markup'] = json.dumps(reply_markup)
+            try:
+                requests.post(url, params=params, timeout=10)
+            except:
+                pass
+        
+        # Меню выбора языка
+        def get_language_menu():
+            return {
+                'keyboard': [
+                    ['🇷🇺 Русский', '🇺🇿 O\'zbek']
+                ],
+                'resize_keyboard': True,
+                'one_time_keyboard': True
+            }
+        
+        # Главное меню
+        def get_main_menu(chat_id):
+            keyboard = [
+                [t(chat_id, 'show_cars'), t(chat_id, 'price_categories')],
+                [t(chat_id, 'select_by_brand'), t(chat_id, 'contact_manager')],
+                [t(chat_id, 'sell_car'), t(chat_id, 'help_btn')]
+            ]
+            return {
+                'keyboard': keyboard,
+                'resize_keyboard': True,
+                'one_time_keyboard': False
+            }
+        
+        # Меню отмены
+        def get_cancel_menu(chat_id):
+            return {
+                'keyboard': [[t(chat_id, 'cancel')]],
+                'resize_keyboard': True,
+                'one_time_keyboard': True
+            }
+        
+        # Кнопка заказа
+        def get_order_button(chat_id, car_id):
+            return {
+                'inline_keyboard': [[
+                    {'text': t(chat_id, 'order_btn'), 'callback_data': f'order_{car_id}'}
+                ]]
+            }
+        
+        # Меню категорий
+        def get_category_menu(chat_id):
+            with app.app_context():
+                categories = PriceCategory.query.filter_by(is_active=True).all()
+                keyboard = []
+                
+                for category in categories:
+                    count = Car.query.filter(
+                        Car.price_usd >= category.min_price_usd,
+                        Car.price_usd <= category.max_price_usd,
+                        Car.is_active == True
+                    ).count()
+                    if count > 0:
+                        keyboard.append([{'text': f"{category.name} ({count})", 'callback_data': f'cat_{category.id}'}])
+                
+                keyboard.append([{'text': t(chat_id, 'back'), 'callback_data': 'back_menu'}])
+                return {'inline_keyboard': keyboard}
+        
+        # Меню брендов для поиска
+        def get_brand_search_menu(chat_id):
+            with app.app_context():
+                brands = Brand.query.filter_by(is_active=True).all()
+                keyboard = []
+                
+                for brand in brands:
+                    count = Car.query.filter_by(brand_id=brand.id, is_active=True).count()
+                    if count > 0:
+                        keyboard.append([{'text': f"{brand.name} ({count})", 'callback_data': f'search_brand_{brand.id}'}])
+                
+                keyboard.append([{'text': t(chat_id, 'back'), 'callback_data': 'back_menu'}])
+                return {'inline_keyboard': keyboard}
+        
+        # Меню моделей для поиска
+        def get_model_search_menu(chat_id, brand_id):
+            with app.app_context():
+                models = CarModel.query.filter_by(brand_id=brand_id, is_active=True).all()
+                keyboard = []
+                
+                for model in models:
+                    count = Car.query.filter_by(model_id=model.id, is_active=True).count()
+                    if count > 0:
+                        keyboard.append([{'text': f"{model.name} ({count})", 'callback_data': f'search_model_{model.id}'}])
+                
+                keyboard.append([{'text': t(chat_id, 'back'), 'callback_data': f'search_back_{brand_id}'}])
+                return {'inline_keyboard': keyboard}
+        
+        # Меню брендов для продажи
+        def get_sell_brand_menu(chat_id):
+            with app.app_context():
+                brands = Brand.query.filter_by(is_active=True).all()
+                keyboard = []
+                row = []
+                
+                for i, brand in enumerate(brands):
+                    row.append({'text': brand.name, 'callback_data': f'sell_brand_{brand.id}'})
+                    if len(row) == 2 or i == len(brands) - 1:
+                        keyboard.append(row)
+                        row = []
+                
+                keyboard.append([{'text': t(chat_id, 'other_brand'), 'callback_data': 'sell_brand_other'}])
+                keyboard.append([{'text': t(chat_id, 'back'), 'callback_data': 'back_menu'}])
+                return {'inline_keyboard': keyboard}
+        
+        # Обработка команды /start
+        def handle_start(chat_id, first_name):
+            user_languages.pop(chat_id, None)
+            user_states.pop(chat_id, None)
+            user_data.pop(chat_id, None)
+            
+            message = TEXTS['ru']['choose_language']
+            send_message(chat_id, message, get_language_menu())
+        
+        # Обработка выбора языка
+        def handle_language_selection(chat_id, language):
+            user_languages[chat_id] = language
+            send_message(chat_id, TEXTS[language]['welcome'], get_main_menu(chat_id))
+        
+        # Показать автомобили
+        def show_cars(chat_id, filter_type=None, filter_id=None):
+            with app.app_context():
+                query = Car.query.filter_by(is_active=True)
+                
+                if filter_type == 'category' and filter_id:
+                    category = PriceCategory.query.get(filter_id)
+                    if category:
+                        query = query.filter(
+                            Car.price_usd >= category.min_price_usd,
+                            Car.price_usd <= category.max_price_usd
+                        )
+                elif filter_type == 'brand' and filter_id:
+                    query = query.filter_by(brand_id=filter_id)
+                elif filter_type == 'model' and filter_id:
+                    query = query.filter_by(model_id=filter_id)
+                
+                cars = query.limit(10).all()
+                
+                if not cars:
+                    send_message(chat_id, t(chat_id, 'no_cars'), get_main_menu(chat_id))
+                    return
+                
+                for car in cars:
+                    brand_name = car.brand.name if car.brand else ""
+                    model_name = car.model.name if car.model else ""
+                    full_brand = f"{brand_name} {model_name}".strip()
+                    
+                    caption = t(chat_id, 'car_info').format(
+                        title=car.title,
+                        price=car.price_usd,
+                        mileage=car.mileage_km,
+                        brand=full_brand,
+                        year=car.year,
+                        fuel=car.fuel_type,
+                        transmission=car.transmission,
+                        color=car.color,
+                        engine=car.engine_capacity,
+                        description=car.description or ''
+                    )
+                    
+                    if car.photo_url:
+                        send_photo(chat_id, car.photo_url, caption, get_order_button(chat_id, car.id))
+                    else:
+                        send_message(chat_id, caption, get_order_button(chat_id, car.id))
+        
+        # Показать менеджеров
+        def show_managers(chat_id):
+            with app.app_context():
+                managers = Manager.query.filter_by(is_active=True).all()
+                
+                if not managers:
+                    managers_text = "👨‍💼 Мухаммед\n📞 +996 555 123 456\n📧 info@suvtekin.kg"
+                else:
+                    managers_text = ""
+                    for manager in managers:
+                        managers_text += f"👨‍💼 *{manager.name}*\n"
+                        if manager.telegram_username:
+                            managers_text += f"📞 @{manager.telegram_username}\n"
+                        if manager.phone:
+                            managers_text += f"📱 {manager.phone}\n"
+                        if manager.email:
+                            managers_text += f"📧 {manager.email}\n"
+                        managers_text += "\n"
+                
+                message = t(chat_id, 'managers').format(managers=managers_text.strip())
+                send_message(chat_id, message, get_main_menu(chat_id))
+        
+        # Начать процесс продажи
+        def start_sell_car(chat_id):
+            user_states[chat_id] = {'action': 'sell_car', 'step': 'brand'}
+            user_data[chat_id] = {}
+            send_message(chat_id, t(chat_id, 'sell_car_welcome'), get_sell_brand_menu(chat_id))
+        
+        # Продолжить процесс продажи после выбора бренда
+        def continue_sell_car(chat_id, brand_name):
+            user_data[chat_id]['brand'] = brand_name
+            user_states[chat_id]['step'] = 'model'
+            send_message(chat_id, t(chat_id, 'sell_car_model'), get_cancel_menu(chat_id))
+        
+        # Обработка заказа
+        def start_order(chat_id, car_id):
+            user_states[chat_id] = {'action': 'order', 'car_id': car_id}
+            send_message(chat_id, t(chat_id, 'order_phone'), get_cancel_menu(chat_id))
+        
+        # Завершить заказ
+        def complete_order(chat_id, car_id, phone, username, first_name):
+            with app.app_context():
+                car = Car.query.get(car_id)
+                if car:
+                    order = Order(
+                        car_id=car.id,
+                        telegram_user_id=chat_id,
+                        telegram_username=username,
+                        telegram_first_name=first_name,
+                        full_name=first_name,
+                        phone=phone,
+                        status='new'
+                    )
+                    db.session.add(order)
+                    db.session.commit()
+                    
+                    # Уведомление админу
+                    admin_msg = f"📥 НОВЫЙ ЗАКАЗ!\n\nАвто: {car.title}\nЦена: ${car.price_usd:,.0f}\nКлиент: @{username}\nТелефон: {phone}\nID: {chat_id}"
+                    send_message(TELEGRAM_ADMIN_ID, admin_msg)
+                
+                send_message(chat_id, t(chat_id, 'order_success'), get_main_menu(chat_id))
+                user_states.pop(chat_id, None)
+        
+        # Завершить продажу
+        def complete_sell(chat_id, username, first_name):
+            data = user_data.get(chat_id, {})
+            
+            with app.app_context():
+                sell_request = SellRequest(
+                    telegram_user_id=chat_id,
+                    telegram_username=username,
+                    telegram_first_name=first_name,
+                    car_brand=data.get('brand', ''),
+                    car_model=data.get('model', ''),
+                    car_year=data.get('year'),
+                    car_mileage=data.get('mileage'),
+                    car_price=data.get('price'),
+                    car_description=data.get('description', ''),
+                    phone=data.get('phone', ''),
+                    status='new'
+                )
+                db.session.add(sell_request)
+                db.session.commit()
+                
+                # Уведомление админу
+                admin_msg = f"💰 НОВАЯ ЗАЯВКА НА ПРОДАЖУ!\n\nМарка: {data.get('brand', '')}\nМодель: {data.get('model', '')}\nГод: {data.get('year', '')}\nПробег: {data.get('mileage', '')} км\nЦена: ${data.get('price', 0):,.0f}\nТелефон: {data.get('phone', '')}\nКлиент: @{username}\nID: {chat_id}"
+                send_message(TELEGRAM_ADMIN_ID, admin_msg)
+            
+            send_message(chat_id, t(chat_id, 'sell_car_success'), get_main_menu(chat_id))
+            user_states.pop(chat_id, None)
+            user_data.pop(chat_id, None)
+        
+        # Обработка callback
+        def handle_callback(callback_query):
+            try:
+                data = callback_query['data']
+                chat_id = callback_query['message']['chat']['id']
+                username = callback_query['from'].get('username', '')
+                first_name = callback_query['from'].get('first_name', '')
+                
+                if data == 'back_menu':
+                    send_message(chat_id, t(chat_id, 'main_menu'), get_main_menu(chat_id))
+                
+                elif data.startswith('order_'):
+                    car_id = int(data.split('_')[1])
+                    start_order(chat_id, car_id)
+                
+                elif data.startswith('cat_'):
+                    category_id = int(data.split('_')[1])
+                    show_cars(chat_id, 'category', category_id)
+                
+                elif data.startswith('search_brand_'):
+                    brand_id = int(data.split('_')[2])
+                    send_message(chat_id, t(chat_id, 'choose_model'), get_model_search_menu(chat_id, brand_id))
+                
+                elif data.startswith('search_back_'):
+                    brand_id = int(data.split('_')[2])
+                    send_message(chat_id, t(chat_id, 'choose_brand'), get_brand_search_menu(chat_id))
+                
+                elif data.startswith('search_model_'):
+                    model_id = int(data.split('_')[2])
+                    show_cars(chat_id, 'model', model_id)
+                
+                elif data.startswith('sell_brand_'):
+                    brand_id = data.split('_')[2]
+                    
+                    if brand_id == 'other':
+                        # Пользователь выбрал "Другую марку"
+                        user_states[chat_id] = {'action': 'sell_car', 'step': 'brand_other'}
+                        send_message(chat_id, "Введите марку вашего автомобиля:", get_cancel_menu(chat_id))
+                    else:
+                        # Пользователь выбрал существующую марку
+                        with app.app_context():
+                            brand = Brand.query.get(int(brand_id))
+                            if brand:
+                                continue_sell_car(chat_id, brand.name)
+                
+                # Ответ на callback
+                url = f"{BASE_URL}/answerCallbackQuery"
+                params = {'callback_query_id': callback_query['id']}
+                requests.post(url, params=params)
+                
+            except Exception as e:
+                logger.error(f"Ошибка callback: {e}")
+                send_message(chat_id, t(chat_id, 'error'), get_main_menu(chat_id))
+        
+        # Основной цикл бота
+        offset = 0
+        while True:
+            try:
+                # Получаем обновления
+                url = f"{BASE_URL}/getUpdates"
+                params = {'offset': offset, 'timeout': 30}
+                response = requests.get(url, params=params, timeout=35)
+                
+                if response.status_code == 200:
+                    data = response.json()
+                    
+                    if data.get('ok'):
+                        for update in data.get('result', []):
+                            offset = update['update_id'] + 1
+                            
+                            # Обработка callback
+                            if 'callback_query' in update:
+                                handle_callback(update['callback_query'])
+                            
+                            # Обработка сообщений
+                            elif 'message' in update:
+                                message = update['message']
+                                chat_id = message['chat']['id']
+                                text = message.get('text', '')
+                                username = message['chat'].get('username', '')
+                                first_name = message['chat'].get('first_name', '')
+                                
+                                # Проверяем выбран ли язык
+                                if chat_id not in user_languages:
+                                    if text in ['🇷🇺 Русский', 'Русский', 'RU', 'ru']:
+                                        handle_language_selection(chat_id, 'ru')
+                                    elif text in ['🇺🇿 O\'zbek', 'O\'zbek', 'UZ', 'uz']:
+                                        handle_language_selection(chat_id, 'uz')
+                                    else:
+                                        handle_start(chat_id, first_name)
+                                    continue
+                                
+                                # Получаем состояние пользователя
+                                state = user_states.get(chat_id, {})
+                                action = state.get('action')
+                                
+                                # Отмена
+                                if text == t(chat_id, 'cancel'):
+                                    user_states.pop(chat_id, None)
+                                    user_data.pop(chat_id, None)
+                                    send_message(chat_id, t(chat_id, 'main_menu'), get_main_menu(chat_id))
+                                    continue
+                                
+                                # Обработка процесса продажи
+                                if action == 'sell_car':
+                                    step = state.get('step')
+                                    data = user_data.get(chat_id, {})
+                                    
+                                    if step == 'brand_other':
+                                        # Пользователь вводит свою марку
+                                        data['brand'] = text
+                                        user_states[chat_id]['step'] = 'model'
+                                        send_message(chat_id, t(chat_id, 'sell_car_model'), get_cancel_menu(chat_id))
+                                    
+                                    elif step == 'model':
+                                        data['model'] = text
+                                        user_states[chat_id]['step'] = 'year'
+                                        send_message(chat_id, t(chat_id, 'sell_car_year'), get_cancel_menu(chat_id))
+                                    
+                                    elif step == 'year':
+                                        try:
+                                            data['year'] = int(text)
+                                            user_states[chat_id]['step'] = 'mileage'
+                                            send_message(chat_id, t(chat_id, 'sell_car_mileage'), get_cancel_menu(chat_id))
+                                        except:
+                                            send_message(chat_id, "Пожалуйста, введите правильный год (например: 2020)")
+                                    
+                                    elif step == 'mileage':
+                                        try:
+                                            data['mileage'] = int(text)
+                                            user_states[chat_id]['step'] = 'price'
+                                            send_message(chat_id, t(chat_id, 'sell_car_price'), get_cancel_menu(chat_id))
+                                        except:
+                                            send_message(chat_id, "Пожалуйста, введите правильный пробег (например: 50000)")
+                                    
+                                    elif step == 'price':
+                                        try:
+                                            data['price'] = float(text)
+                                            user_states[chat_id]['step'] = 'description'
+                                            send_message(chat_id, t(chat_id, 'sell_car_description'), get_cancel_menu(chat_id))
+                                        except:
+                                            send_message(chat_id, "Пожалуйста, введите правильную цену (например: 15000)")
+                                    
+                                    elif step == 'description':
+                                        data['description'] = text
+                                        user_states[chat_id]['step'] = 'phone'
+                                        send_message(chat_id, t(chat_id, 'sell_car_phone'), get_cancel_menu(chat_id))
+                                    
+                                    elif step == 'phone':
+                                        data['phone'] = text
+                                        complete_sell(chat_id, username, first_name)
+                                    
+                                    user_data[chat_id] = data
+                                    continue
+                                
+                                # Обработка заказа с телефоном
+                                elif action == 'order':
+                                    car_id = state.get('car_id')
+                                    if car_id:
+                                        complete_order(chat_id, car_id, text, username, first_name)
+                                    continue
+                                
+                                # Обработка команд
+                                if text == '/start':
+                                    handle_start(chat_id, first_name)
+                                elif text == '/help' or text == t(chat_id, 'help_btn'):
+                                    send_message(chat_id, t(chat_id, 'help'), get_main_menu(chat_id))
+                                elif text == t(chat_id, 'show_cars'):
+                                    show_cars(chat_id)
+                                elif text == t(chat_id, 'price_categories'):
+                                    send_message(chat_id, t(chat_id, 'choose_category'), get_category_menu(chat_id))
+                                elif text == t(chat_id, 'select_by_brand'):
+                                    send_message(chat_id, t(chat_id, 'choose_brand'), get_brand_search_menu(chat_id))
+                                elif text == t(chat_id, 'contact_manager'):
+                                    show_managers(chat_id)
+                                elif text == t(chat_id, 'sell_car'):
+                                    start_sell_car(chat_id)
+                                elif text.startswith('/'):
+                                    send_message(chat_id, t(chat_id, 'help'), get_main_menu(chat_id))
+                
+                time.sleep(1)
+                
+            except Exception as e:
+                logger.error(f"Ошибка в цикле бота: {e}")
+                time.sleep(5)
+                
+    except Exception as e:
+        logger.error(f"Критическая ошибка бота: {e}")
+
+# Запуск бота в потоке
+def start_bot():
+    try:
+        bot_thread = threading.Thread(target=telegram_bot, daemon=True)
+        bot_thread.start()
+        logger.info("✅ Telegram бот запущен")
+    except Exception as e:
+        logger.error(f"❌ Не удалось запустить бот: {e}")
+
+# Проверка токена
+def check_bot():
+    try:
+        url = f"https://api.telegram.org/bot{TELEGRAM_TOKEN}/getMe"
+        response = requests.get(url, timeout=10)
         
         if response.status_code == 200:
-            logger.info(f"✅ Вебхук установлен: {webhook_url}")
-            logger.info(f"✅ Ответ Telegram: {response.text}")
-            return True
+            data = response.json()
+            if data.get('ok'):
+                logger.info(f"✅ Бот доступен: @{data['result']['username']}")
+                return True
+            else:
+                logger.error(f"❌ Бот не доступен: {data}")
+                return False
         else:
-            logger.error(f"❌ Ошибка установки вебхука: {response.text}")
+            logger.error(f"❌ Ошибка соединения с Telegram API: {response.status_code}")
             return False
     except Exception as e:
-        logger.error(f"❌ Ошибка настройки вебхука: {e}")
+        logger.error(f"❌ Ошибка проверки бота: {e}")
         return False
 
-# Простой обработчик вебхука для Telegram
-@app.route(f'/webhook/{TELEGRAM_TOKEN}', methods=['POST'])
-def telegram_webhook():
-    try:
-        data = request.get_json()
-        
-        if 'message' in data:
-            message = data['message']
-            chat_id = message['chat']['id']
-            text = message.get('text', '')
-            first_name = message['chat'].get('first_name', '')
-            
-            BASE_URL = f"https://api.telegram.org/bot{TELEGRAM_TOKEN}"
-            
-            # Обработка команды /start
-            if text == '/start':
-                response_text = (
-                    "🚗 Добро пожаловать в Suvtekin Auto!\n\n"
-                    "Доступные команды:\n"
-                    "/cars - Посмотреть автомобили\n"
-                    "/managers - Контакты менеджеров\n"
-                    "/sell - Продать автомобиль\n"
-                    "/help - Помощь"
-                )
-                
-                # Отправляем сообщение с клавиатурой
-                keyboard = {
-                    'keyboard': [
-                        ['/cars', '/managers'],
-                        ['/sell', '/help']
-                    ],
-                    'resize_keyboard': True,
-                    'one_time_keyboard': False
-                }
-                
-                requests.post(
-                    f"{BASE_URL}/sendMessage",
-                    json={
-                        'chat_id': chat_id,
-                        'text': response_text,
-                        'reply_markup': keyboard
-                    }
-                )
-            
-            # Показать автомобили
-            elif text == '/cars':
-                with app.app_context():
-                    cars = Car.query.filter_by(is_active=True).limit(5).all()
-                    
-                    if not cars:
-                        requests.post(
-                            f"{BASE_URL}/sendMessage",
-                            json={
-                                'chat_id': chat_id,
-                                'text': '🚗 Автомобилей нет в наличии'
-                            }
-                        )
-                    else:
-                        for car in cars:
-                            brand_name = car.brand.name if car.brand else ""
-                            model_name = car.model.name if car.model else ""
-                            
-                            caption = (
-                                f"🚗 *{car.title}*\n\n"
-                                f"💰 *Цена:* ${car.price_usd:,.0f}\n"
-                                f"📏 *Пробег:* {car.mileage_km:,} км\n"
-                                f"🏭 *Марка:* {brand_name}\n"
-                                f"📅 *Год:* {car.year}\n"
-                                f"⛽ *Топливо:* {car.fuel_type}\n"
-                                f"⚙️ *КПП:* {car.transmission}"
-                            )
-                            
-                            # Кнопка для заказа
-                            keyboard = {
-                                'inline_keyboard': [[
-                                    {
-                                        'text': '🛒 Заказать',
-                                        'callback_data': f'order_{car.id}'
-                                    }
-                                ]]
-                            }
-                            
-                            if car.photo_url:
-                                requests.post(
-                                    f"{BASE_URL}/sendPhoto",
-                                    json={
-                                        'chat_id': chat_id,
-                                        'photo': car.photo_url,
-                                        'caption': caption,
-                                        'parse_mode': 'Markdown',
-                                        'reply_markup': keyboard
-                                    }
-                                )
-                            else:
-                                requests.post(
-                                    f"{BASE_URL}/sendMessage",
-                                    json={
-                                        'chat_id': chat_id,
-                                        'text': caption,
-                                        'parse_mode': 'Markdown',
-                                        'reply_markup': keyboard
-                                    }
-                                )
-            
-            # Показать менеджеров
-            elif text == '/managers':
-                with app.app_context():
-                    managers = Manager.query.filter_by(is_active=True).all()
-                    
-                    if not managers:
-                        managers_text = "👨‍💼 Мухаммед\n📞 +996 555 123 456\n📧 info@suvtekin.kg"
-                    else:
-                        managers_text = ""
-                        for manager in managers:
-                            managers_text += f"👨‍💼 *{manager.name}*\n"
-                            if manager.telegram_username:
-                                managers_text += f"📞 @{manager.telegram_username}\n"
-                            if manager.phone:
-                                managers_text += f"📱 {manager.phone}\n"
-                            if manager.email:
-                                managers_text += f"📧 {manager.email}\n"
-                            managers_text += "\n"
-                    
-                    requests.post(
-                        f"{BASE_URL}/sendMessage",
-                        json={
-                            'chat_id': chat_id,
-                            'text': f"📞 *Наши менеджеры:*\n\n{managers_text}",
-                            'parse_mode': 'Markdown'
-                        }
-                    )
-            
-            # Помощь
-            elif text == '/help':
-                help_text = (
-                    "🤖 *Suvtekin Auto Bot*\n\n"
-                    "Доступные команды:\n"
-                    "/start - Начать работу с ботом\n"
-                    "/cars - Посмотреть автомобили\n"
-                    "/managers - Контакты менеджеров\n"
-                    "/sell - Продать автомобиль\n"
-                    "/help - Помощь\n\n"
-                    "Для заказа автомобиля нажмите кнопку '🛒 Заказать' под понравившимся авто."
-                )
-                
-                requests.post(
-                    f"{BASE_URL}/sendMessage",
-                    json={
-                        'chat_id': chat_id,
-                        'text': help_text,
-                        'parse_mode': 'Markdown'
-                    }
-                )
-            
-            # Продать автомобиль
-            elif text == '/sell':
-                requests.post(
-                    f"{BASE_URL}/sendMessage",
-                    json={
-                        'chat_id': chat_id,
-                        'text': "💰 *Продать автомобиль*\n\nОтправьте марку и модель вашего автомобиля в одном сообщении (например: Toyota Camry 2018)."
-                    }
-                )
-        
-        # Обработка callback (заказы)
-        elif 'callback_query' in data:
-            callback = data['callback_query']
-            callback_id = callback['id']
-            chat_id = callback['message']['chat']['id']
-            callback_data = callback.get('data', '')
-            username = callback['from'].get('username', '')
-            first_name = callback['from'].get('first_name', '')
-            
-            BASE_URL = f"https://api.telegram.org/bot{TELEGRAM_TOKEN}"
-            
-            # Ответ на callback
-            requests.post(
-                f"{BASE_URL}/answerCallbackQuery",
-                json={'callback_query_id': callback_id}
+# Запускаем бот
+if check_bot():
+    start_bot()
+else:
+    logger.error("⚠️ Бот не запущен из-за ошибки токена")
+
+# Простая страница для добавления данных через форму
+@app.route('/add-car', methods=['GET', 'POST'])
+@login_required
+def add_car():
+    if request.method == 'POST':
+        try:
+            car = Car(
+                title=request.form['title'],
+                description=request.form['description'],
+                price_usd=float(request.form['price_usd']),
+                brand_id=int(request.form['brand_id']),
+                model_id=int(request.form['model_id']),
+                year=int(request.form['year']),
+                mileage_km=int(request.form['mileage_km']),
+                fuel_type=request.form['fuel_type'],
+                transmission=request.form['transmission'],
+                color=request.form['color'],
+                engine_capacity=float(request.form['engine_capacity']),
+                photo_url=request.form['photo_url'],
+                is_active=True
             )
-            
-            # Обработка заказа
-            if callback_data.startswith('order_'):
-                car_id = int(callback_data.split('_')[1])
-                
-                with app.app_context():
-                    car = Car.query.get(car_id)
-                    if car:
-                        # Создаем заказ
-                        order = Order(
-                            car_id=car.id,
-                            telegram_user_id=chat_id,
-                            telegram_username=username,
-                            telegram_first_name=first_name,
-                            full_name=first_name,
-                            phone='Не указан',
-                            status='new'
-                        )
-                        db.session.add(order)
-                        db.session.commit()
-                        
-                        # Уведомление админу
-                        admin_msg = f"📥 НОВЫЙ ЗАКАЗ!\n\nАвто: {car.title}\nЦена: ${car.price_usd:,.0f}\nКлиент: @{username}\nID: {chat_id}"
-                        requests.post(
-                            f"{BASE_URL}/sendMessage",
-                            json={
-                                'chat_id': TELEGRAM_ADMIN_ID,
-                                'text': admin_msg
-                            }
-                        )
-                
-                # Сообщение пользователю
-                requests.post(
-                    f"{BASE_URL}/sendMessage",
-                    json={
-                        'chat_id': chat_id,
-                        'text': "✅ Заказ оформлен! Менеджер свяжется с вами в ближайшее время."
-                    }
-                )
-        
-        return jsonify({'ok': True})
+            db.session.add(car)
+            db.session.commit()
+            return "✅ Автомобиль добавлен! <a href='/add-car'>Добавить еще</a>"
+        except Exception as e:
+            return f"❌ Ошибка: {e}"
     
-    except Exception as e:
-        logger.error(f"Ошибка в вебхуке: {e}")
-        return jsonify({'ok': False, 'error': str(e)})
+    brands = Brand.query.all()
+    models = CarModel.query.all()
+    
+    return f'''
+    <!DOCTYPE html>
+    <html>
+    <head>
+        <title>Добавить автомобиль</title>
+        <style>
+            body {{ font-family: Arial; padding: 20px; }}
+            form {{ max-width: 600px; }}
+            .form-group {{ margin-bottom: 15px; }}
+            label {{ display: block; margin-bottom: 5px; }}
+            input, select, textarea {{ width: 100%; padding: 8px; }}
+            button {{ background: #007bff; color: white; border: none; padding: 10px 20px; }}
+        </style>
+    </head>
+    <body>
+        <h2>Добавить автомобиль</h2>
+        <form method="POST">
+            <div class="form-group">
+                <label>Название:</label>
+                <input type="text" name="title" required>
+            </div>
+            <div class="form-group">
+                <label>Описание:</label>
+                <textarea name="description" rows="3"></textarea>
+            </div>
+            <div class="form-group">
+                <label>Цена ($):</label>
+                <input type="number" name="price_usd" required>
+            </div>
+            <div class="form-group">
+                <label>Бренд:</label>
+                <select name="brand_id">
+                    {' '.join([f'<option value="{b.id}">{b.name}</option>' for b in brands])}
+                </select>
+            </div>
+            <div class="form-group">
+                <label>Модель:</label>
+                <select name="model_id">
+                    {' '.join([f'<option value="{m.id}">{m.name}</option>' for m in models])}
+                </select>
+            </div>
+            <div class="form-group">
+                <label>Год:</label>
+                <input type="number" name="year">
+            </div>
+            <div class="form-group">
+                <label>Пробег (км):</label>
+                <input type="number" name="mileage_km">
+            </div>
+            <div class="form-group">
+                <label>Топливо:</label>
+                <select name="fuel_type">
+                    <option>Бензин</option>
+                    <option>Дизель</option>
+                    <option>Газ</option>
+                </select>
+            </div>
+            <div class="form-group">
+                <label>КПП:</label>
+                <select name="transmission">
+                    <option>Автомат</option>
+                    <option>Механика</option>
+                </select>
+            </div>
+            <div class="form-group">
+                <label>Цвет:</label>
+                <input type="text" name="color">
+            </div>
+            <div class="form-group">
+                <label>Объем двигателя (л):</label>
+                <input type="number" step="0.1" name="engine_capacity">
+            </div>
+            <div class="form-group">
+                <label>Фото URL:</label>
+                <input type="text" name="photo_url">
+            </div>
+            <button type="submit">Добавить</button>
+        </form>
+    </body>
+    </html>
+    '''
 
-# Ручная настройка вебхука
-@app.route('/setup-webhook')
-def setup_webhook():
-    if setup_webhook_on_startup():
-        return "✅ Вебхук успешно настроен!<br><br>Теперь бот будет получать сообщения."
-    else:
-        return "❌ Ошибка настройки вебхука. Проверьте логи."
+@app.route('/add-brand', methods=['GET', 'POST'])
+@login_required
+def add_brand():
+    if request.method == 'POST':
+        try:
+            brand = Brand(name=request.form['name'])
+            db.session.add(brand)
+            db.session.commit()
+            return "✅ Бренд добавлен! <a href='/add-brand'>Добавить еще</a>"
+        except Exception as e:
+            return f"❌ Ошибка: {e}"
+    
+    return '''
+    <!DOCTYPE html>
+    <html>
+    <head><title>Добавить бренд</title></head>
+    <body>
+        <h2>Добавить бренд</h2>
+        <form method="POST">
+            <input type="text" name="name" placeholder="Название бренда" required>
+            <button type="submit">Добавить</button>
+        </form>
+    </body>
+    </html>
+    '''
 
-# Запускаем настройку вебхука при старте
-@app.before_request
-def initialize_webhook():
-    """Инициализация вебхука при первом запросе"""
-    if not hasattr(app, 'webhook_initialized'):
-        logger.info("🚀 Инициализация приложения...")
-        setup_webhook_on_startup()
-        app.webhook_initialized = True
+@app.route('/add-model', methods=['GET', 'POST'])
+@login_required
+def add_model():
+    if request.method == 'POST':
+        try:
+            model = CarModel(
+                name=request.form['name'],
+                brand_id=int(request.form['brand_id'])
+            )
+            db.session.add(model)
+            db.session.commit()
+            return "✅ Модель добавлена! <a href='/add-model'>Добавить еще</a>"
+        except Exception as e:
+            return f"❌ Ошибка: {e}"
+    
+    brands = Brand.query.all()
+    
+    return f'''
+    <!DOCTYPE html>
+    <html>
+    <head><title>Добавить модель</title></head>
+    <body>
+        <h2>Добавить модель</h2>
+        <form method="POST">
+            <input type="text" name="name" placeholder="Название модели" required><br><br>
+            <select name="brand_id">
+                {' '.join([f'<option value="{b.id}">{b.name}</option>' for b in brands])}
+            </select><br><br>
+            <button type="submit">Добавить</button>
+        </form>
+    </body>
+    </html>
+    '''
 
 # Страница проверки
 @app.route('/test')
@@ -853,6 +1241,8 @@ def test():
         brands_count = Brand.query.count()
         models_count = CarModel.query.count()
         managers_count = Manager.query.count()
+        orders_count = Order.query.count()
+        sell_requests_count = SellRequest.query.count()
         
     return f'''
     <!DOCTYPE html>
@@ -864,10 +1254,10 @@ def test():
             .status {{ padding: 15px; border-radius: 5px; margin: 10px 0; }}
             .success {{ background: #d4edda; color: #155724; }}
             .info {{ background: #d1ecf1; color: #0c5460; }}
-            .stats {{ display: grid; grid-template-columns: repeat(2, 1fr); gap: 10px; margin: 20px 0; }}
+            .stats {{ display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; margin: 20px 0; }}
             .stat-card {{ background: white; padding: 15px; border-radius: 5px; box-shadow: 0 2px 5px rgba(0,0,0,0.1); }}
-            .btn {{ display: inline-block; padding: 10px 20px; background: #007bff; color: white; text-decoration: none; border-radius: 5px; margin: 10px 0; }}
-            .btn:hover {{ background: #0056b3; }}
+            .btn {{ display: inline-block; padding: 10px 20px; background: #28a745; color: white; text-decoration: none; border-radius: 5px; margin: 5px; }}
+            .btn-admin {{ background: #007bff; }}
         </style>
     </head>
     <body>
@@ -881,35 +1271,44 @@ def test():
             <div class="stat-card">
                 <h3>Автомобили</h3>
                 <p>{cars_count} шт.</p>
+                <a href="/add-car" class="btn">➕ Добавить авто</a>
             </div>
             <div class="stat-card">
                 <h3>Бренды</h3>
                 <p>{brands_count} шт.</p>
+                <a href="/add-brand" class="btn">➕ Добавить бренд</a>
             </div>
             <div class="stat-card">
                 <h3>Модели</h3>
                 <p>{models_count} шт.</p>
+                <a href="/add-model" class="btn">➕ Добавить модель</a>
             </div>
             <div class="stat-card">
                 <h3>Менеджеры</h3>
                 <p>{managers_count} шт.</p>
             </div>
+            <div class="stat-card">
+                <h3>Заказы</h3>
+                <p>{orders_count} шт.</p>
+            </div>
+            <div class="stat-card">
+                <h3>Заявки на продажу</h3>
+                <p>{sell_requests_count} шт.</p>
+            </div>
         </div>
         
-        <p><strong>Админка:</strong> <a href="/admin">/admin</a></p>
+        <a href="/admin" class="btn btn-admin">⚙️ Админка Flask-Admin</a>
         <p><strong>Логин:</strong> muha</p>
         <p><strong>Пароль:</strong> muhamed</p>
         
         <p><strong>Telegram бот:</strong> @suvtekinn_bot</p>
         <p>1. Откройте Telegram</p>
         <p>2. Найдите бота: <strong>@suvtekinn_bot</strong></p>
-        <p>3. Напишите: <code>/start</code></p>
+        <p>3. Напишите: <code>/start</code> - выберите язык</p>
         <p>4. Используйте кнопки для навигации</p>
         
-        <a href="/setup-webhook" class="btn">⚙️ Настроить вебхук бота</a>
-        
         <div class="status info">
-            <strong>Примечание:</strong> После деплоя обязательно нажмите "Настроить вебхук бота"
+            <strong>Добавление данных:</strong> Используйте формы выше или админку. Если в админке не работает Create - используйте формы.
         </div>
     </body>
     </html>
@@ -924,11 +1323,9 @@ if __name__ == '__main__':
     logger.info(f"🚀 Запуск Suvtekin Auto на порту {port}")
     logger.info(f"🌐 Адрес: http://localhost:{port}")
     logger.info(f"🔗 Админка: http://localhost:{port}/admin")
+    logger.info(f"➕ Формы для добавления: /add-car, /add-brand, /add-model")
     logger.info(f"🔑 Логин: muha, Пароль: muhamed")
     logger.info(f"🤖 Telegram бот: @suvtekinn_bot")
-    
-    # Настраиваем вебхук при локальном запуске
-    setup_webhook_on_startup()
     
     # Запускаем Flask
     app.run(host='0.0.0.0', port=port, debug=False)
